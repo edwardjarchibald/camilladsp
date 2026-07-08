@@ -66,9 +66,11 @@ mod native {
     }
 
     impl RtPriorityError {
-        fn from_last_os_error(context: &str) -> Self {
+        /// The `pthread_*` functions return the error number directly and do not set `errno`, so the
+        /// return code is converted here rather than reading `errno` via `last_os_error()`.
+        fn from_os_error(context: &str, code: libc::c_int) -> Self {
             RtPriorityError {
-                message: format!("{context}: {}", std::io::Error::last_os_error()),
+                message: format!("{context}: {}", std::io::Error::from_raw_os_error(code)),
             }
         }
     }
@@ -95,22 +97,23 @@ mod native {
         // Remember the current policy and parameters so demotion can restore them.
         let mut policy = 0;
         let mut param = unsafe { std::mem::zeroed::<libc::sched_param>() };
-        if unsafe { libc::pthread_getschedparam(pthread_id, &mut policy, &mut param) } != 0 {
-            return Err(RtPriorityError::from_last_os_error("pthread_getschedparam"));
+        let ret = unsafe { libc::pthread_getschedparam(pthread_id, &mut policy, &mut param) };
+        if ret != 0 {
+            return Err(RtPriorityError::from_os_error("pthread_getschedparam", ret));
         }
         let handle = RtPriorityHandle { policy, param };
 
         let mut rt_param = unsafe { std::mem::zeroed::<libc::sched_param>() };
         rt_param.sched_priority = RT_PRIORITY;
-        if unsafe {
+        let ret = unsafe {
             libc::pthread_setschedparam(
                 pthread_id,
                 libc::SCHED_FIFO | SCHED_RESET_ON_FORK,
                 &rt_param,
             )
-        } != 0
-        {
-            return Err(RtPriorityError::from_last_os_error("pthread_setschedparam"));
+        };
+        if ret != 0 {
+            return Err(RtPriorityError::from_os_error("pthread_setschedparam", ret));
         }
         Ok(handle)
     }
@@ -120,8 +123,9 @@ mod native {
         handle: RtPriorityHandle,
     ) -> Result<(), RtPriorityError> {
         let pthread_id = unsafe { libc::pthread_self() };
-        if unsafe { libc::pthread_setschedparam(pthread_id, handle.policy, &handle.param) } != 0 {
-            return Err(RtPriorityError::from_last_os_error("pthread_setschedparam"));
+        let ret = unsafe { libc::pthread_setschedparam(pthread_id, handle.policy, &handle.param) };
+        if ret != 0 {
+            return Err(RtPriorityError::from_os_error("pthread_setschedparam", ret));
         }
         Ok(())
     }
