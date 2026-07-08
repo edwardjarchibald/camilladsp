@@ -282,6 +282,68 @@ For the gadget, the control can also indicate that the sample rate changed.
 When this happens, the capture can no longer continue and CamillaDSP will stop.
 The new sample rate can then be read by the `GetStopReason` websocket command.
 
+## Real-time priority
+CamillaDSP promotes its processing and audio threads to real-time priority (`SCHED_FIFO`, priority 10),
+which helps avoid buffer underruns and dropouts under load.
+
+The rest of this section applies to the plain ALSA-only build.
+There, priority is requested by calling `sched_setscheduler` directly, without needing D-Bus or any
+running service, so it works on a minimal headless system.
+A build that includes the PulseAudio or PipeWire backend instead uses `rtkit` over D-Bus to request
+the priority, which is the normal mechanism on a desktop system, and the setup below does not apply.
+
+A process is only allowed to request real-time scheduling if it has permission to do so.
+Running as `root` works but is not recommended.
+The better option is to run CamillaDSP as a normal user and grant that user a real-time priority limit
+(`RLIMIT_RTPRIO`) of at least 10.
+If the permission is missing, CamillaDSP still runs, but logs a warning that it could not get real-time
+priority.
+
+### Using systemd
+If CamillaDSP runs as a systemd service, set the limit directly in the unit file and run as a normal user:
+
+```ini
+[Service]
+User=camilladsp
+LimitRTPRIO=95
+```
+
+This is the most self-contained option, as the limit is part of the unit file.
+
+### Using PAM limits
+For a login session, or when not using systemd, grant the limit through PAM.
+Create a drop-in file:
+
+```
+# /etc/security/limits.d/95-camilladsp.conf
+@audio   -   rtprio   95
+```
+
+Then add the user to the `audio` group and log in again:
+
+```sh
+sudo usermod -aG audio camilladsp
+```
+
+This is the same setup used by JACK and PipeWire for pro-audio.
+Note that PAM limits only apply to processes started through a login session, not to plain system
+services started by init. For those, use the systemd option above.
+
+### Using a file capability
+As an alternative, the binary itself can be granted the capability to raise scheduling priority:
+
+```sh
+sudo setcap 'cap_sys_nice=ep' /usr/local/bin/camilladsp
+```
+
+This works regardless of user and launcher, but has to be reapplied whenever the binary is replaced,
+and lets anyone who can run the binary request real-time priority.
+
+### Verifying
+Once running, `chrt -p <thread id>` should report `SCHED_FIFO` with priority 10 for the processing and
+audio threads.
+The current limit can be checked with `ulimit -r`, which must be at least 10.
+
 ## Links
 ### ALSA Documentation
 https://www.alsa-project.org/wiki/Documentation
