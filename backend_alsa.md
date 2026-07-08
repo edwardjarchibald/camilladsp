@@ -287,7 +287,7 @@ CamillaDSP promotes its processing and audio threads to real-time priority (`SCH
 which helps avoid buffer underruns and dropouts under load.
 
 The rest of this section applies to the plain ALSA-only build.
-There, priority is requested by calling `sched_setscheduler` directly, without needing D-Bus or any
+There, priority is requested by calling `pthread_setschedparam` directly, without needing D-Bus or any
 running service, so it works on a minimal headless system.
 A build that includes the PulseAudio or PipeWire backend instead uses `rtkit` over D-Bus to request
 the priority, which is the normal mechanism on a desktop system, and the setup below does not apply.
