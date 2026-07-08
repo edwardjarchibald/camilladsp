@@ -52,6 +52,9 @@ jobs:
           asset_name: camilladsp-linux-amd64.tar.gz
           tag: ${{ github.event.release.tag_name }}
 
+      - name: Install DBus development files
+        run: DEBIAN_FRONTEND="noninteractive" sudo apt-get install libdbus-1-dev -y
+
       - name: Install PipeWire development files
         run: DEBIAN_FRONTEND="noninteractive" sudo apt-get install libpipewire-0.3-dev -y
 
@@ -146,6 +149,9 @@ jobs:
           file: camilladsp.tar.gz
           asset_name: camilladsp-linux-aarch64.tar.gz
           tag: ${{ github.event.release.tag_name }}
+
+      - name: Install DBus development files
+        run: DEBIAN_FRONTEND="noninteractive" sudo apt-get install libdbus-1-dev -y
 
       - name: Install PipeWire development files
         run: DEBIAN_FRONTEND="noninteractive" sudo apt-get install libpipewire-0.3-dev -y
