@@ -45,9 +45,32 @@ pub use native::{demote_current_thread_from_real_time, promote_current_thread_to
 mod native {
     use std::fmt;
 
-    /// Real-time priority to request for the SCHED_FIFO policy. Matches the default used by rtkit
-    /// (`RT_PRIO_DEFAULT`), which is well below the priority of critical kernel threads.
-    const RT_PRIORITY: libc::c_int = 10;
+    /// Default real-time priority to request for the SCHED_FIFO policy. Matches the value used by
+    /// rtkit (`RT_PRIO_DEFAULT`), and stays well below the kernel IRQ threads (typically around 50)
+    /// that feed the audio device. Override with the `CAMILLADSP_RT_PRIORITY` environment variable.
+    const DEFAULT_RT_PRIORITY: libc::c_int = 10;
+
+    /// Environment variable used to override the real-time priority. Accepts an integer 1-99. Higher
+    /// values preempt more work but must stay below the audio interface's IRQ thread, or they starve
+    /// the very threads that deliver audio.
+    const RT_PRIORITY_ENV: &str = "CAMILLADSP_RT_PRIORITY";
+
+    /// The real-time priority to request, from `CAMILLADSP_RT_PRIORITY` or the default.
+    fn requested_priority() -> libc::c_int {
+        match std::env::var(RT_PRIORITY_ENV) {
+            Ok(value) => match value.trim().parse::<libc::c_int>() {
+                Ok(priority) if (1..=99).contains(&priority) => priority,
+                _ => {
+                    warn!(
+                        "Ignoring invalid {RT_PRIORITY_ENV}=\"{value}\", \
+                         expected an integer 1-99. Using default {DEFAULT_RT_PRIORITY}."
+                    );
+                    DEFAULT_RT_PRIORITY
+                }
+            },
+            Err(_) => DEFAULT_RT_PRIORITY,
+        }
+    }
 
     /// Ensures threads/processes forked from a real-time thread do not inherit real-time
     /// scheduling. Not reliably exposed by `libc` across targets, so defined here.
@@ -104,7 +127,7 @@ mod native {
         let handle = RtPriorityHandle { policy, param };
 
         let mut rt_param = unsafe { std::mem::zeroed::<libc::sched_param>() };
-        rt_param.sched_priority = RT_PRIORITY;
+        rt_param.sched_priority = requested_priority();
         let ret = unsafe {
             libc::pthread_setschedparam(
                 pthread_id,
