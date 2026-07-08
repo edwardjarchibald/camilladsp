@@ -146,7 +146,10 @@ mod native {
         handle: RtPriorityHandle,
     ) -> Result<(), RtPriorityError> {
         let pthread_id = unsafe { libc::pthread_self() };
-        let ret = unsafe { libc::pthread_setschedparam(pthread_id, handle.policy, &handle.param) };
+        // Promotion set SCHED_RESET_ON_FORK, and the kernel forbids an unprivileged thread from
+        // clearing it, so keep the flag when restoring the saved policy or the call fails with EPERM.
+        let policy = handle.policy | SCHED_RESET_ON_FORK;
+        let ret = unsafe { libc::pthread_setschedparam(pthread_id, policy, &handle.param) };
         if ret != 0 {
             return Err(RtPriorityError::from_os_error("pthread_setschedparam", ret));
         }
