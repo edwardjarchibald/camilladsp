@@ -1,0 +1,130 @@
+---
+# Elephant Ears fork example: a Clarity-style multiband compressor built from
+# the fork's Crossover filter and FeedForwardCompressor processor. See
+# FORK-NOTES.md.
+#
+# Topology: a mixer fans stereo (2ch) into one channel pair per band (6ch for
+# 3 bands). Each band-channel is split by a Crossover filter, each band pair is
+# compressed independently by a FeedForwardCompressor, and a mixer sums the
+# bands back to stereo. The LR4 + phase-corrected crossover reconstructs flat,
+# and the per-band makeup lives inside each compressor.
+devices:
+  samplerate: 48000
+  chunksize: 4096
+  resampler: null
+  capture:
+    type: RawFile
+    filename: "dummy"
+    channels: 2
+    format: S16_LE
+  playback:
+    type: File
+    filename: "dummy"
+    channels: 2
+    format: S16_LE
+
+mixers:
+  split:
+    channels:
+      in: 2
+      out: 6
+    mapping:
+      - dest: 0
+        sources: [{ channel: 0, gain: 0, inverted: false }]
+      - dest: 1
+        sources: [{ channel: 1, gain: 0, inverted: false }]
+      - dest: 2
+        sources: [{ channel: 0, gain: 0, inverted: false }]
+      - dest: 3
+        sources: [{ channel: 1, gain: 0, inverted: false }]
+      - dest: 4
+        sources: [{ channel: 0, gain: 0, inverted: false }]
+      - dest: 5
+        sources: [{ channel: 1, gain: 0, inverted: false }]
+  combine:
+    channels:
+      in: 6
+      out: 2
+    mapping:
+      - dest: 0
+        sources:
+          - { channel: 0, gain: 0, inverted: false }
+          - { channel: 2, gain: 0, inverted: false }
+          - { channel: 4, gain: 0, inverted: false }
+      - dest: 1
+        sources:
+          - { channel: 1, gain: 0, inverted: false }
+          - { channel: 3, gain: 0, inverted: false }
+          - { channel: 5, gain: 0, inverted: false }
+
+filters:
+  band0:
+    type: Crossover
+    parameters:
+      freq: [500, 4000]
+      band: 0
+  band1:
+    type: Crossover
+    parameters:
+      freq: [500, 4000]
+      band: 1
+  band2:
+    type: Crossover
+    parameters:
+      freq: [500, 4000]
+      band: 2
+
+processors:
+  comp_low:
+    type: FeedForwardCompressor
+    parameters:
+      channels: 6
+      attack: 0.015
+      release: 0.1
+      threshold: -30
+      factor: 3.0
+      makeup_gain: 6
+      process_channels: [0, 1]
+  comp_mid:
+    type: FeedForwardCompressor
+    parameters:
+      channels: 6
+      attack: 0.015
+      release: 0.1
+      threshold: -25
+      factor: 4.0
+      knee_width: 6
+      makeup_gain: 10
+      process_channels: [2, 3]
+  comp_high:
+    type: FeedForwardCompressor
+    parameters:
+      channels: 6
+      attack: 0.015
+      release: 0.1
+      threshold: -20
+      factor: 4.0
+      knee_width: 6
+      makeup_gain: 12
+      process_channels: [4, 5]
+
+pipeline:
+  - type: Mixer
+    name: split
+  - type: Filter
+    channels: [0, 1]
+    names: [band0]
+  - type: Filter
+    channels: [2, 3]
+    names: [band1]
+  - type: Filter
+    channels: [4, 5]
+    names: [band2]
+  - type: Processor
+    name: comp_low
+  - type: Processor
+    name: comp_mid
+  - type: Processor
+    name: comp_high
+  - type: Mixer
+    name: combine

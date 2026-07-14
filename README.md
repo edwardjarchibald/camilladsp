@@ -2391,6 +2391,39 @@ The coefficients are given as a list a0..an in that order. Example:
 This example implements a Biquad lowpass, but for a Biquad the Free Biquad type is faster and should be preferred.
 Both a and b are optional. If left out, they default to [1.0].
 
+### Crossover
+> Elephant Ears fork addition. See [FORK-NOTES.md](FORK-NOTES.md).
+
+The "Crossover" filter renders a single band of a Linkwitz–Riley order-4
+crossover with D'Appolito phase correction. Unlike the `BiquadCombo`
+Linkwitz–Riley high/lowpass (a cascade of Q-varied biquads), it realizes each
+crossover edge as an order-2 Butterworth section *squared* and adds a per-edge
+all-pass phase correction, so that when three or more bands are summed the
+reconstruction is flat.
+
+It is designed for the multiband topology where a mixer fans the input into one
+channel per band: each band-channel gets one `Crossover` filter, given the full
+list of crossover frequencies plus its own band index.
+
+Example (one band of a three-band split):
+```
+filters:
+  band1:
+    type: Crossover
+    parameters:
+      freq: [500, 4000]
+      band: 1
+```
+
+  Parameters:
+  * `freq`: the crossover frequencies in Hz, ascending. The number of output
+    bands is `freq.len() + 1`.
+  * `band`: which band this filter renders, `0` (lowest) up to `freq.len()`
+    (highest).
+
+The coefficients and filter state are computed in 64-bit floating point
+regardless of the build's sample format, so the low-frequency crossovers remain
+stable and match the reference implementation.
 
 ## Processors
 The `processors` section contains the definitions for the Processors.
@@ -2623,6 +2656,56 @@ pipeline:
   - type: Mixer
     name: 6to2
 ```
+
+### FeedForwardCompressor
+> Elephant Ears fork addition. See [FORK-NOTES.md](FORK-NOTES.md).
+
+The "FeedForwardCompressor" processor implements a feed-forward, log-domain,
+soft-knee peak compressor following the Giannoulis / Massberg / Reiss (2012)
+design. It differs from the built-in `Compressor` in three ways:
+
+* It applies the static gain curve to the instantaneous level first, then
+  smooths the resulting gain reduction (rather than smoothing the detected level
+  and then applying a hard-knee curve).
+* It supports a soft knee of configurable width around the threshold.
+* Detection is per processed channel — there is no summed sidechain — so each
+  channel is compressed independently by its own level. The makeup gain is
+  applied inside the compressor, so content below the threshold receives the
+  full makeup lift.
+
+Example:
+```
+processors:
+  democompressor:
+    type: FeedForwardCompressor
+    parameters:
+      channels: 2
+      attack: 0.015
+      release: 0.1
+      threshold: -25
+      factor: 4.0
+      knee_width: 6 (*)
+      makeup_gain: 12 (*)
+      clip_limit: 0.0 (*)
+      soft_clip: true (*)
+      process_channels: [0, 1] (*)
+
+pipeline:
+  - type: Processor
+    name: democompressor
+```
+
+  Parameters:
+  * `channels`: number of channels, must match the number of channels of the pipeline where the compressor is inserted.
+  * `attack`: time constant in seconds for attack.
+  * `release`: time constant in seconds for release.
+  * `threshold`: the level threshold in dB where compression sets in.
+  * `factor`: the compression ratio. A factor of 4 means content 4 dB over the threshold is attenuated to 1 dB over the threshold.
+  * `knee_width`: width in dB of the quadratic soft knee around the threshold. Optional, defaults to 0 (hard knee).
+  * `makeup_gain`: amount of gain in dB applied inside the compressor. Optional, defaults to 0 dB.
+  * `clip_limit`: the level in dB to clip at. Providing a value enables clipping after compression. Leave out or set to `null` to disable clipping.
+  * `soft_clip`: enable soft clipping. Ignored when clipping is disabled. Optional, defaults to `false`.
+  * `process_channels`: a list of channels to be compressed, each detected independently. Optional, defaults to all channels.
 
 ## Pipeline
 The pipeline section defines the processing steps between input and output.

@@ -1,3 +1,15 @@
+# 4.1.3-ee.1 (Elephant Ears fork)
+New features:
+- Add `Crossover` filter: one band of a Linkwitz–Riley order-4 crossover with
+  D'Appolito phase correction, for flat-summing multiband splits.
+- Add `FeedForwardCompressor` processor: a Giannoulis/Massberg/Reiss (2012)
+  feed-forward log-domain soft-knee peak compressor with per-channel detection
+  and makeup applied inside the compressor.
+- Add `exampleconfigs/clarity_mbc.yml` demonstrating a multiband compressor
+  built from the two new components.
+
+See FORK-NOTES.md for the fork's branch and release model.
+
 # 4.1.3
 Bugfixes:
 - Increased capture ringbuffer sizes in CoreAudio, WASAPI, ASIO, and threaded ALSA
