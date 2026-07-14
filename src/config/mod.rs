@@ -1010,6 +1010,22 @@ pub enum Filter {
         description: Option<String>,
         parameters: LimiterParameters,
     },
+    Crossover {
+        #[serde(default)]
+        description: Option<String>,
+        parameters: CrossoverParameters,
+    },
+}
+
+/// One band of a Linkwitz–Riley order-4 crossover with D'Appolito phase
+/// correction, as used by the Clarity multiband compressor. `freq` lists the
+/// ascending crossover edges (Hz); `numBands = freq.len() + 1`, and `band`
+/// selects which band this instance renders (0 ..= freq.len()).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct CrossoverParameters {
+    pub freq: Vec<PrcFmt>,
+    pub band: usize,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

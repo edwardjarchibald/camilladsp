@@ -96,6 +96,9 @@ impl FilterGroup {
                 config::Filter::Limiter { parameters, .. } => {
                     Box::new(filters::limiter::Limiter::from_config(name, parameters))
                 }
+                config::Filter::Crossover { parameters, .. } => Box::new(
+                    filters::crossover::Crossover::from_config(name, sample_freq, parameters),
+                ),
             };
             filters.push(filter);
         }

@@ -17,6 +17,7 @@
 pub mod basicfilters;
 pub mod biquad;
 pub mod biquadcombo;
+pub mod crossover;
 pub mod diffeq;
 pub mod dither;
 pub mod fftconv;
@@ -230,6 +231,7 @@ pub fn validate_filter(fs: usize, filter_config: &config::Filter) -> Res<()> {
             biquadcombo::validate_config(fs, parameters)
         }
         config::Filter::Limiter { parameters, .. } => limiter::validate_config(parameters),
+        config::Filter::Crossover { parameters, .. } => crossover::validate_config(fs, parameters),
     }
 }
 
