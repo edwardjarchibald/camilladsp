@@ -498,4 +498,62 @@ mod tests {
         bad.process_channels = Some(vec![5]);
         assert!(validate_feed_forward_compressor(&bad).is_err());
     }
+
+    /// Cross-check every parameter case against golden vectors exported from
+    /// the source-of-truth `clarity-mbc.js` (ClarityCompressor.process).
+    #[test]
+    fn matches_clarity_golden_vectors() {
+        #[cfg(feature = "32bit")]
+        const TOL: f64 = 1e-3;
+        #[cfg(not(feature = "32bit"))]
+        const TOL: f64 = 1e-8;
+
+        let file = std::fs::File::open("testdata/clarity/golden.json")
+            .expect("golden.json missing; run testdata/clarity/generate_golden.js");
+        let golden: serde_json::Value =
+            serde_json::from_reader(std::io::BufReader::new(file)).unwrap();
+        let comp = &golden["compressor"];
+        let input: Vec<PrcFmt> = comp["input"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_f64().unwrap() as PrcFmt)
+            .collect();
+
+        for (i, case) in comp["cases"].as_array().unwrap().iter().enumerate() {
+            let f = |k: &str| case[k].as_f64().unwrap();
+            let expected: Vec<f64> = case["output"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_f64().unwrap())
+                .collect();
+            // JS attack/release are in ms; the native config takes seconds.
+            let p = config::FeedForwardCompressorParameters {
+                channels: 1,
+                process_channels: None,
+                attack: (f("attack") / 1000.0) as PrcFmt,
+                release: (f("release") / 1000.0) as PrcFmt,
+                threshold: f("threshold") as PrcFmt,
+                factor: f("ratio") as PrcFmt,
+                knee_width: Some(f("kneeWidth") as PrcFmt),
+                makeup_gain: Some(f("makeupGain") as PrcFmt),
+                soft_clip: None,
+                clip_limit: None,
+            };
+            let mut ffc = build(p);
+            let out = run(&mut ffc, &input);
+            let mut max_err = 0.0_f64;
+            for (a, b) in out.iter().zip(expected.iter()) {
+                let err = (*a as f64 - *b).abs();
+                if err > max_err {
+                    max_err = err;
+                }
+            }
+            assert!(
+                max_err < TOL,
+                "compressor case {i} golden mismatch: max_err {max_err:e} (limit {TOL:e})"
+            );
+        }
+    }
 }

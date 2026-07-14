@@ -484,4 +484,61 @@ mod tests {
         };
         assert!(validate_config(FS, &band_oob).is_err());
     }
+
+    /// Cross-check every band against golden vectors exported from the
+    /// source-of-truth `clarity-mbc.js` (see testdata/clarity/generate_golden.js).
+    // Sample I/O casts are no-ops under f64 PrcFmt, load-bearing under 32bit.
+    #[allow(clippy::unnecessary_cast)]
+    #[test]
+    fn matches_clarity_golden_vectors() {
+        // Under the default f64 PrcFmt the port should match the f64 reference
+        // to near machine precision; under the 32bit feature the sample I/O is
+        // f32 so the bound is looser.
+        #[cfg(feature = "32bit")]
+        const TOL: f64 = 1e-3;
+        #[cfg(not(feature = "32bit"))]
+        const TOL: f64 = 1e-9;
+
+        let file = std::fs::File::open("testdata/clarity/golden.json")
+            .expect("golden.json missing; run testdata/clarity/generate_golden.js");
+        let golden: serde_json::Value =
+            serde_json::from_reader(std::io::BufReader::new(file)).unwrap();
+        let xover = &golden["crossover"];
+        let freq: Vec<PrcFmt> = xover["freq"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_f64().unwrap() as PrcFmt)
+            .collect();
+        let input: Vec<PrcFmt> = xover["input"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_f64().unwrap() as PrcFmt)
+            .collect();
+        let bands = xover["bands"].as_array().unwrap();
+
+        for (band_idx, expected) in bands.iter().enumerate() {
+            let expected: Vec<f64> = expected
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_f64().unwrap())
+                .collect();
+            let mut sig = input.clone();
+            let mut xf = build_band(&freq, band_idx);
+            xf.process_waveform(&mut sig).unwrap();
+            let mut max_err = 0.0_f64;
+            for (a, b) in sig.iter().zip(expected.iter()) {
+                let err = (*a as f64 - *b).abs();
+                if err > max_err {
+                    max_err = err;
+                }
+            }
+            assert!(
+                max_err < TOL,
+                "crossover band {band_idx} golden mismatch: max_err {max_err:e} (limit {TOL:e})"
+            );
+        }
+    }
 }
