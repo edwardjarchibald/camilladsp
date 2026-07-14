@@ -264,6 +264,16 @@ impl Pipeline {
                                 );
                                 Box::new(race) as Box<dyn Processor>
                             }
+                            config::Processor::FeedForwardCompressor { parameters, .. } => {
+                                let comp =
+                                    processors::feed_forward_compressor::FeedForwardCompressor::from_config(
+                                        &step.name,
+                                        parameters,
+                                        conf.devices.samplerate,
+                                        conf.devices.chunksize,
+                                    );
+                                Box::new(comp) as Box<dyn Processor>
+                            }
                         };
                         steps.push(PipelineStep::ProcessorStep(proc));
                     }

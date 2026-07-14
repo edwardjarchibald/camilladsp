@@ -19,6 +19,7 @@ use crate::audiochunk::AudioChunk;
 use crate::config;
 
 pub mod compressor;
+pub mod feed_forward_compressor;
 pub mod noisegate;
 pub mod race;
 

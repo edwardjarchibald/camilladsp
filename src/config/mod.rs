@@ -1519,6 +1519,11 @@ pub enum Processor {
         description: Option<String>,
         parameters: RACEParameters,
     },
+    FeedForwardCompressor {
+        #[serde(default)]
+        description: Option<String>,
+        parameters: FeedForwardCompressorParameters,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -1604,6 +1609,49 @@ impl RACEParameters {
 
     pub fn delay_unit(&self) -> TimeUnit {
         self.delay_unit.unwrap_or(TimeUnit::Milliseconds)
+    }
+}
+
+/// A Giannoulis/Massberg/Reiss feed-forward, log-domain, soft-knee peak
+/// compressor with per-channel detection and per-band makeup applied inside the
+/// compressor. Used by the Clarity multiband compressor. `attack`/`release` are
+/// in seconds; `threshold`/`knee_width`/`makeup_gain` in dB; `factor` is the
+/// compression ratio. Detection is per processed channel (no summed sidechain).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct FeedForwardCompressorParameters {
+    pub channels: usize,
+    #[serde(default)]
+    pub process_channels: Option<Vec<usize>>,
+    pub attack: PrcFmt,
+    pub release: PrcFmt,
+    pub threshold: PrcFmt,
+    pub factor: PrcFmt,
+    #[serde(default)]
+    pub knee_width: Option<PrcFmt>,
+    #[serde(default)]
+    pub makeup_gain: Option<PrcFmt>,
+    #[serde(default)]
+    pub soft_clip: Option<bool>,
+    #[serde(default)]
+    pub clip_limit: Option<PrcFmt>,
+}
+
+impl FeedForwardCompressorParameters {
+    pub fn process_channels(&self) -> Vec<usize> {
+        self.process_channels.clone().unwrap_or_default()
+    }
+
+    pub fn knee_width(&self) -> PrcFmt {
+        self.knee_width.unwrap_or_default()
+    }
+
+    pub fn makeup_gain(&self) -> PrcFmt {
+        self.makeup_gain.unwrap_or_default()
+    }
+
+    pub fn soft_clip(&self) -> bool {
+        self.soft_clip.unwrap_or_default()
     }
 }
 
